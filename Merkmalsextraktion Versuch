@@ -1,0 +1,64 @@
+#include <iostream>
+#include <opencv2/opencv.hpp>
+
+// Gerekli OpenCV kütüphanelerini dahil ediyoruz
+
+int main() {
+    // Termal görüntüyü almak için gerekli kamera tanımlaması
+    cv::VideoCapture thermalCamera(0);
+    if (!thermalCamera.isOpened()) {
+        std::cout << "Termal kamera açılamadı!" << std::endl;
+        return -1;
+    }
+
+    // Görüntü işleme için gerekli değişkenler
+    cv::Mat frame, processedFrame;
+
+    while (true) {
+        // Termal kameradan görüntüyü al
+        thermalCamera >> frame;
+
+        // Görüntüyü işleme adımlarını burada gerçekleştirin
+
+        // Ön işleme adımları
+        cv::Mat grayImage;
+        cv::cvtColor(frame, grayImage, cv::COLOR_BGR2GRAY);
+
+        cv::Mat equalizedImage;
+        cv::equalizeHist(grayImage, equalizedImage);
+
+        // Merkeziyet ayrıştırma adımı (Örnek olarak kenar tespiti)
+        cv::Mat edges;
+        cv::Canny(equalizedImage, edges, 50, 150);
+
+        // Sınıflandırma adımı (Örnek olarak eğitilmiş bir model kullanma)
+        cv::Ptr<cv::ml::SVM> svm = cv::ml::SVM::load("model.xml"); // Eğitilmiş modelin yüklenmesi
+
+        cv::Mat normalizedImage;
+        cv::normalize(edges, normalizedImage, 0, 255, cv::NORM_MINMAX);
+
+        cv::Mat reshapedImage = normalizedImage.reshape(1, 1);
+        reshapedImage.convertTo(reshapedImage, CV_32FC1);
+
+        float prediction = svm->predict(reshapedImage);
+
+        // Anomali bölgelerini işaretlemek için sınırlayıcı kutu çizimi
+        if (prediction == 1) {
+            cv::rectangle(frame, cv::Point(0, 0), cv::Point(frame.cols, frame.rows), cv::Scalar(0, 0, 255), 2);
+        }
+
+        // İşlenmiş görüntüyü ekranda göster
+        cv::imshow("Anomali Tespiti", frame);
+
+        // Çıkış tuşuna basıldığında döngüden çık
+        if (cv::waitKey(1) == 27) {
+            break;
+        }
+    }
+
+    // Kullanılan kaynakları serbest bırak
+    thermalCamera.release();
+    cv::destroyAllWindows();
+
+    return 0;
+}
